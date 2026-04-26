@@ -1,0 +1,4 @@
+crewai[tools,google-genai]
+python-dotenv
+streamlit
+reportlab

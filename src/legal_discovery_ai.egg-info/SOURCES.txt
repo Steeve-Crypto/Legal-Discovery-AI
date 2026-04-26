@@ -1,0 +1,10 @@
+README.md
+pyproject.toml
+src/legal_discovery_ai/__init__.py
+src/legal_discovery_ai/app.py
+src/legal_discovery_ai/crew.py
+src/legal_discovery_ai.egg-info/PKG-INFO
+src/legal_discovery_ai.egg-info/SOURCES.txt
+src/legal_discovery_ai.egg-info/dependency_links.txt
+src/legal_discovery_ai.egg-info/requires.txt
+src/legal_discovery_ai.egg-info/top_level.txt

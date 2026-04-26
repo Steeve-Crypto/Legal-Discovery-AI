@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "legal-discovery-ai"
+version = "0.1.0"
+description = "Multi-agent legal discovery workflow for DC solo attorneys using CrewAI."
+requires-python = ">=3.10,<3.14"
+dependencies = [
+  "crewai[tools,google-genai]",
+  "python-dotenv",
+  "streamlit",
+  "reportlab",
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]

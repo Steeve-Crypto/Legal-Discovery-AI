@@ -1,0 +1,2 @@
+"""Legal Discovery AI package."""
+

@@ -1,0 +1,9 @@
+Metadata-Version: 2.4
+Name: legal-discovery-ai
+Version: 0.1.0
+Summary: Multi-agent legal discovery workflow for DC solo attorneys using CrewAI.
+Requires-Python: <3.14,>=3.10
+Requires-Dist: crewai[tools]
+Requires-Dist: python-dotenv
+Requires-Dist: streamlit
+Requires-Dist: reportlab
