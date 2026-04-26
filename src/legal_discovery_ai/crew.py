@@ -49,6 +49,9 @@ def build_llm() -> LLM:
     anthropic_key = os.getenv("ANTHROPIC_API_KEY")
     openai_key = os.getenv("OPENAI_API_KEY")
     gemini_key = os.getenv("GEMINI_API_KEY")
+    gemini_model = resolve_gemini_model(
+        os.getenv("GEMINI_MODEL", "gemini-2.0-flash"), gemini_key
+    )
 
     if anthropic_key:
         return LLM(
@@ -66,7 +69,7 @@ def build_llm() -> LLM:
 
     if gemini_key:
         return LLM(
-            model="gemini/gemini-1.5-pro",
+            model=gemini_model,
             api_key=gemini_key,
             temperature=0.1,
         )
@@ -77,23 +80,69 @@ def build_llm() -> LLM:
     )
 
 
-def build_rag_tool(past_cases_dir: Path) -> RagTool:
-    """Create a RAG tool and index the past_cases directory."""
-    rag_tool = RagTool()
-    # Example ingestion requested: index all known prior case files.
-    rag_tool.add(data_type="directory", path=str(past_cases_dir))
-    return rag_tool
+def resolve_gemini_model(requested_model: str, gemini_key: str | None) -> str:
+    """Normalize and validate Gemini model names for CrewAI native provider."""
+    model = requested_model.strip()
+    if model.startswith("models/"):
+        model = model.split("models/", 1)[1]
+    if model.startswith("gemini/"):
+        model = model.split("gemini/", 1)[1]
+
+    if not gemini_key:
+        return model
+
+    try:
+        from google import genai
+
+        client = genai.Client(api_key=gemini_key)
+        available = {
+            m.name.split("models/", 1)[1]
+            for m in client.models.list()
+            if getattr(m, "supported_actions", None)
+            and "generateContent" in m.supported_actions
+            and m.name.startswith("models/")
+        }
+    except Exception:
+        return model
+
+    if model in available:
+        return model
+
+    for candidate in ("gemini-2.0-flash", "gemini-flash-latest"):
+        if candidate in available:
+            return candidate
+
+    return model
 
 
-def build_agents(document_path: str, llm: LLM, rag_tool: RagTool) -> dict[str, Agent]:
+def build_rag_tools(past_cases_dir: Path) -> list[Any]:
+    """Create RAG tools with OpenAI-backed RagTool when available."""
+    tools: list[Any] = []
+    openai_key = os.getenv("OPENAI_API_KEY")
+
+    # CrewAI RagTool/DirectorySearchTool currently require OPENAI_API_KEY
+    # in this dependency version.
+    if openai_key:
+        tools.append(DirectorySearchTool(directory=str(past_cases_dir)))
+        rag_tool = RagTool()
+        # Example ingestion requested: index all known prior case files.
+        rag_tool.add(data_type="directory", path=str(past_cases_dir))
+        tools.insert(0, rag_tool)
+
+    return tools
+
+
+def build_agents(document_path: str, llm: LLM, rag_tools: list[Any]) -> dict[str, Agent]:
     """Create all agents for legal discovery processing."""
-    parser_tools = [
-        FileReadTool(file_path=document_path),
-        PDFSearchTool(pdf=str(document_path)),
-        DirectorySearchTool(directory=str(Path(document_path).parent)),
-    ]
+    parser_tools = [FileReadTool(file_path=document_path)]
+    openai_key = os.getenv("OPENAI_API_KEY")
 
-    rag_lookup_tool = DirectorySearchTool(directory=str(PAST_CASES_DIR))
+    # PDF/Directory semantic tools can require OpenAI embeddings in some builds.
+    if openai_key:
+        parser_tools.append(PDFSearchTool(pdf=str(document_path)))
+        parser_tools.append(
+            DirectorySearchTool(directory=str(Path(document_path).parent))
+        )
 
     document_parser = Agent(
         role="DocumentParser",
@@ -124,7 +173,7 @@ def build_agents(document_path: str, llm: LLM, rag_tool: RagTool) -> dict[str, A
             "matters to reduce blind spots and prioritize remediation."
         ),
         llm=llm,
-        tools=[rag_tool, rag_lookup_tool],
+        tools=rag_tools,
         allow_delegation=False,
         verbose=True,
     )
@@ -141,7 +190,7 @@ def build_agents(document_path: str, llm: LLM, rag_tool: RagTool) -> dict[str, A
             "court-ready action plans."
         ),
         llm=llm,
-        tools=[rag_tool, rag_lookup_tool],
+        tools=rag_tools,
         allow_delegation=False,
         verbose=True,
     )
@@ -214,15 +263,15 @@ def run_crew(document_path: str, document_text: str | None = None) -> Any:
     ensure_supported_python()
     load_dotenv(PROJECT_ROOT / ".env")
     llm = build_llm()
-    rag_tool = build_rag_tool(PAST_CASES_DIR)
-    agents = build_agents(document_path=document_path, llm=llm, rag_tool=rag_tool)
+    rag_tools = build_rag_tools(PAST_CASES_DIR)
+    agents = build_agents(document_path=document_path, llm=llm, rag_tools=rag_tools)
     tasks = build_tasks(agents=agents, document_path=document_path)
 
     crew = Crew(
         agents=list(agents.values()),
         tasks=tasks,
         process=Process.sequential,
-        verbose=2,
+        verbose=True,
         memory=True,
     )
 

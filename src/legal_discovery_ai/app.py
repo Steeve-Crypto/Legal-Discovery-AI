@@ -32,6 +32,24 @@ def normalize_result(result: object) -> str:
     return str(result)
 
 
+def build_user_friendly_error(exc: Exception) -> str:
+    message = str(exc)
+    lowered = message.lower()
+    if "resource_exhausted" in lowered or "quota exceeded" in lowered:
+        return (
+            "Gemini quota is exhausted for this API key/project (free-tier limit reached "
+            "or set to 0). Add billing in Google AI Studio/Cloud, switch to another "
+            "provider key (Anthropic/OpenAI), or wait for quota reset before retrying."
+        )
+    if "not_found" in lowered and "gemini" in lowered and "model" in lowered:
+        return (
+            "Selected Gemini model is unavailable for this key/project. Set "
+            "`GEMINI_MODEL` in `.env` to a model available in your account "
+            "(for example `gemini-2.0-flash`)."
+        )
+    return message
+
+
 def parse_result_payload(result: object) -> dict[str, Any]:
     if isinstance(result, dict):
         return result
@@ -139,12 +157,15 @@ def markdown_to_pdf_bytes(markdown_text: str) -> bytes:
     return buffer.read()
 
 
-def render_status_panel(progress_slot: Any, statuses: dict[str, str], pct: int) -> None:
+def render_status_panel(
+    progress_slot: Any, panel_slot: Any, statuses: dict[str, str], pct: int
+) -> None:
     progress_slot.progress(pct / 100, text=f"Estimated progress: {pct}%")
-    st.markdown("### Agent Status")
-    for agent_name, status in statuses.items():
-        icon = "🟡" if status == "Running" else "🟢" if status == "Completed" else "⚪"
-        st.write(f"{icon} {agent_name}: {status}")
+    with panel_slot.container():
+        st.markdown("### Agent Status")
+        for agent_name, status in statuses.items():
+            icon = "🟡" if status == "Running" else "🟢" if status == "Completed" else "⚪"
+            st.write(f"{icon} {agent_name}: {status}")
 
 
 def main() -> None:
@@ -162,10 +183,6 @@ def main() -> None:
 
     with st.sidebar:
         st.header("Configuration")
-        st.write(
-            "Ensure `.env` has `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, or "
-            "`GEMINI_API_KEY`."
-        )
         supplemental_text = st.text_area(
             "Optional supplemental text",
             value="",
@@ -189,7 +206,7 @@ def main() -> None:
             "Case Brief Writer": "Queued",
         }
         progress_slot = st.empty()
-        status_panel_slot = st.container()
+        status_panel_slot = st.empty()
 
         result_box: dict[str, Any] = {"value": None, "error": None}
 
@@ -223,20 +240,22 @@ def main() -> None:
                     statuses[agent_name] = "Queued"
 
             pct = min(90, int((elapsed / 30) * 100))
-            with status_panel_slot:
-                render_status_panel(progress_slot, statuses, max(5, pct))
+            render_status_panel(
+                progress_slot, status_panel_slot, statuses, max(5, pct)
+            )
             time.sleep(0.5)
 
         thread.join()
 
         if result_box["error"] is not None:
-            st.exception(result_box["error"])
+            st.error(build_user_friendly_error(result_box["error"]))
+            with st.expander("Technical details"):
+                st.exception(result_box["error"])
             return
 
         for agent_name in phase_order:
             statuses[agent_name] = "Completed"
-        with status_panel_slot:
-            render_status_panel(progress_slot, statuses, 100)
+        render_status_panel(progress_slot, status_panel_slot, statuses, 100)
 
         result = result_box["value"]
         result_text = normalize_result(result)

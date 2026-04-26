@@ -66,6 +66,8 @@ ANTHROPIC_API_KEY=your_key_here
 # OPENAI_API_KEY=your_key_here
 # OR
 # GEMINI_API_KEY=your_key_here
+# Optional override if your account has a different available model:
+# GEMINI_MODEL=gemini-2.0-flash
 ```
 
 ## Run
@@ -116,7 +118,9 @@ python -m legal_discovery_ai.crew --document-path "data\past_cases\example_case.
 
 ## Notes
 
-- LLM preference order is Anthropic Claude 3.5 Sonnet, then OpenAI GPT-4o, then Gemini 1.5 Pro.
+- LLM preference order is Anthropic Claude 3.5 Sonnet, then OpenAI GPT-4o, then Gemini (`GEMINI_MODEL`, default `gemini-2.0-flash`).
 - RAG directory ingestion happens in code using:
   - `rag_tool.add(data_type="directory", path="data/past_cases/")`
-- Crew execution is configured as `Process.sequential`, `verbose=2`, and `memory=True`.
+- `RagTool` (vector RAG) is enabled when `OPENAI_API_KEY` is present.
+- In this CrewAI tools version, `RagTool`, `DirectorySearchTool`, and `PDFSearchTool` may require `OPENAI_API_KEY`; Gemini-only mode falls back to `FileReadTool`-based processing so the workflow still runs.
+- Crew execution is configured as `Process.sequential`, `verbose=True`, and `memory=True`.
