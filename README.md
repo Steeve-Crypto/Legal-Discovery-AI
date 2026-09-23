@@ -48,6 +48,17 @@ python -m legal_discovery_ai.crew --document-path data/sample.pdf
 streamlit run src/legal_discovery_ai/app.py
 ```
 
+
+## Demo
+
+Live Streamlit attorney UI (`streamlit run src/legal_discovery_ai/app.py`) on Linux:
+
+![Legal Discovery Streamlit UI](docs/demo/streamlit-ui.png)
+
+![Upload panel](docs/demo/streamlit-upload.png)
+
+Empty analysis history is real — no invented briefs or fake confidence scores.
+
 ## Project layout
 
 ```text
